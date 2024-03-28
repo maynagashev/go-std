@@ -1,7 +1,8 @@
 package main
 
 import (
-	"errors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"testing"
 )
 
@@ -26,10 +27,8 @@ func TestAbs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Abs(tt.value)
-			if got != tt.want {
-				t.Errorf("Abs(%v) = %v; want %v", tt.value, got, tt.want)
-			}
+			// меняем на функцию Equal из пакета assert
+			assert.Equal(t, Abs(tt.value), tt.want)
 		})
 	}
 }
@@ -47,32 +46,77 @@ func TestUser_FullName(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.u.FullName(); got != tt.want {
-				t.Errorf("User.FullName() = %v; want %v", got, tt.want)
-			}
+			assert.Equal(t, tt.u.FullName(), tt.want)
+
 		})
 	}
 }
 
 func TestFamily_AddNew(t *testing.T) {
-	f := Family{}
-	err := f.AddNew(Father, Person{
-		FirstName: "Misha",
-		LastName:  "Popov",
-		Age:       56,
-	})
-	if err != nil {
-		t.Errorf("Family.AddNew() error = %v; want nil", err)
+	type newPerson struct {
+		r Relationship
+		p Person
 	}
-	if _, ok := f.Members[Father]; !ok {
-		t.Errorf("Family.AddNew() error = %v; want nil", errors.New("father not added"))
+	tests := []struct {
+		name           string
+		existedMembers map[Relationship]Person
+		newPerson      newPerson
+		wantErr        bool
+	}{
+		{
+			name: "add father",
+			existedMembers: map[Relationship]Person{
+				Mother: {
+					FirstName: "Maria",
+					LastName:  "Popova",
+					Age:       36,
+				},
+			},
+			newPerson: newPerson{
+				r: Father,
+				p: Person{
+					FirstName: "Misha",
+					LastName:  "Popov",
+					Age:       42,
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "catch error",
+			existedMembers: map[Relationship]Person{
+				Father: {
+					FirstName: "Misha",
+					LastName:  "Popov",
+					Age:       42,
+				},
+			},
+			newPerson: newPerson{
+				r: Father,
+				p: Person{
+					FirstName: "Ken",
+					LastName:  "Gymsohn",
+					Age:       32,
+				},
+			},
+			wantErr: true,
+		},
 	}
-	err = f.AddNew(Father, Person{
-		FirstName: "Drug",
-		LastName:  "Mishi",
-		Age:       57,
-	})
-	if err == nil {
-		t.Errorf("Family.AddNew() error = %v; want not nil", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			f := &Family{
+				Members: tt.existedMembers,
+			}
+			err := f.AddNew(tt.newPerson.r, tt.newPerson.p)
+			if !tt.wantErr {
+				// обязательно проверяем на ошибки
+				require.NoError(t, err)
+				// дополнительно проверяем, что новый человек был добавлен
+				assert.Contains(t, f.Members, tt.newPerson.r)
+				return
+			}
+
+			assert.Error(t, err)
+		})
 	}
 }
