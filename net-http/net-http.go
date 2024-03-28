@@ -90,6 +90,7 @@ func main() {
 	mux.HandleFunc(`/json`, JSONHandler)
 	mux.HandleFunc(`/static`, StaticFilesHandler)
 	mux.HandleFunc(`/golang/`, golangPage)
+	mux.HandleFunc(`/redirect`, redirectFunc)
 	//  Содержимое файла net-http.go будет отображено на главной странице
 	mux.HandleFunc(`/`, mainPage)
 
@@ -97,4 +98,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func redirectFunc(writer http.ResponseWriter, request *http.Request) {
+	http.RedirectHandler("https://ya.ru/", http.StatusMovedPermanently).ServeHTTP(writer, request)
 }
