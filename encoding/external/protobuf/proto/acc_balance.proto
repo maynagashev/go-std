@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+// имя proto-пакета и версия
+// версию указывать необязательно, это общепринятый подход
+// для версионирования спецификации
+package account.v1beta1;
+
+// опция задаёт пакет для генерируемого файла
+// файл будет создаваться в родительской директории с именем пакета main
+option go_package = "./main";
+
+// описание типа AccountBalance
+message AccountBalance {
+  bytes account_id_hash = 1;                // Go: []byte
+  bool is_blocked = 2;                      // Go: bool
+  repeated CurrencyAmount amounts = 3;      // Go: []CurrencyAmount
+}
+
+// описание типа CurrencyAmount
+message CurrencyAmount {
+  int64  amount = 1;   // Go: int64
+  int32  decimals = 2; // Go: int32 (int8 не определён спецификацией proto3)
+  string symbol = 3;   // Go: string
+}
