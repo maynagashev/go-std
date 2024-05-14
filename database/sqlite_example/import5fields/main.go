@@ -42,7 +42,8 @@ func main() {
 	}
 	// записываем []Video в базу данных
 	// тоже вспомогательной функцией
-	err = insertVideosTx(context.Background(), db, videos)
+	//err = insertVideosTx(context.Background(), db, videos)
+	err = insertVideosTxWithPrepare(context.Background(), db, videos)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -95,6 +96,34 @@ func insertVideosTx(ctx context.Context, db *sql.DB, videos []Video) error {
 		}
 	}
 	// завершаем транзакцию
+	return tx.Commit()
+}
+
+// Вставка видео с использованием транзакций и Prepare (по факту немного медленнее)
+func insertVideosTxWithPrepare(ctx context.Context, db *sql.DB, videos []Video) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	// можно вызвать Rollback в defer,
+	// если Commit будет раньше, то откат проигнорируется
+	defer tx.Rollback()
+
+	stmt, err := tx.PrepareContext(ctx,
+		"INSERT INTO videos (video_id, title, publish_time, tags, views)"+
+			" VALUES(?,?,?,?,?)")
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, v := range videos {
+		_, err := stmt.ExecContext(ctx, v.Id, v.Title, v.PublishTime,
+			strings.Join(v.Tags, `|`), v.Views)
+		if err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
