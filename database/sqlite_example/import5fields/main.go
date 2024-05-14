@@ -42,7 +42,7 @@ func main() {
 	}
 	// записываем []Video в базу данных
 	// тоже вспомогательной функцией
-	err = insertVideos(context.Background(), db, videos)
+	err = insertVideosTx(context.Background(), db, videos)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,6 +59,7 @@ type Video struct {
 	Views       int       // views
 }
 
+// Вставка записей без использования транзакций (сильно медленнее)
 func insertVideos(ctx context.Context, db *sql.DB, videos []Video) error {
 	for _, v := range videos {
 		// в этом случае возвращаемое значение не несёт полезной информации,
@@ -72,6 +73,29 @@ func insertVideos(ctx context.Context, db *sql.DB, videos []Video) error {
 		}
 	}
 	return nil
+}
+
+// Вставка видео с использованием транзакций (быстрее примерно в 40 раз)
+func insertVideosTx(ctx context.Context, db *sql.DB, videos []Video) error {
+	// начинаем транзакцию
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	for _, v := range videos {
+		// все изменения записываются в транзакцию
+		_, err := tx.ExecContext(ctx,
+			"INSERT INTO videos (video_id, title, publish_time, tags, views)"+
+				" VALUES(?,?,?,?,?)", v.Id, v.Title, v.PublishTime,
+			strings.Join(v.Tags, `|`), v.Views)
+		if err != nil {
+			// если ошибка, то откатываем изменения
+			tx.Rollback()
+			return err
+		}
+	}
+	// завершаем транзакцию
+	return tx.Commit()
 }
 
 func readVideoCSV(csvFile string) ([]Video, error) {
