@@ -2,13 +2,25 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 )
 
-func main() {
-	err := NewTimeError(fmt.Errorf("error message"))
-	fmt.Println(err)
+func ReadTextFile(filename string) (string, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return ``, NewTimeError(err)
+	}
+	return string(data), nil
+}
 
+func main() {
+	_, err := ReadTextFile("myconfig.yaml")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(0)
+	}
+	// ...
 }
 
 // TimeError предназначен для ошибок с фиксацией времени возникновения.
