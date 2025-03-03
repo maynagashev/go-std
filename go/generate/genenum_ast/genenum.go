@@ -31,6 +31,8 @@ const templateStr = `
 
 package {{.Package}}
 
+import "fmt"
+
 var names{{.Type}} = map[{{.Type}}]string{
 {{range .Entries}}{{.Value}}: "{{.Name}}",{{if .Alert}} // {{.Alert}}{{end}}
 {{end}}
@@ -39,6 +41,22 @@ var names{{.Type}} = map[{{.Type}}]string{
 func (v {{.Type}}) String() string {
     return names{{.Type}}[v]
 }
+
+{{range .Entries}}
+type {{.Name}}Error struct {
+    Description string
+}
+
+func (v {{.Name}}Error) Error() string {
+    return fmt.Sprintf("HTTP {{.Value}} %s", v.Description) 
+}
+
+{{if .Alert}}
+func (v {{.Name}}Error) Alert() string {
+    return "{{.Alert}}"
+}
+{{end}}
+{{end}}
 `
 
 var tmpl = template.Must(template.New("enum").Parse(templateStr))
