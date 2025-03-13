@@ -16,6 +16,8 @@ import (
 	pb "demo/proto"
 )
 
+const SecretToken = "secret_token"
+
 // UsersServer поддерживает все необходимые методы сервера.
 type UsersServer struct {
 	// нужно встраивать тип pb.Unimplemented<TypeName>
@@ -98,6 +100,23 @@ func (s *UsersServer) DelUser(ctx context.Context, in *pb.DelUserRequest) (*pb.D
 	return &response, nil
 }
 
+func unaryInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	var token string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		values := md.Get("token")
+		if len(values) > 0 {
+			token = values[0]
+		}
+	}
+	if len(token) == 0 {
+		return nil, status.Error(codes.Unauthenticated, "missing token")
+	}
+	if token != SecretToken {
+		return nil, status.Error(codes.Unauthenticated, "invalid token")
+	}
+	return handler(ctx, req)
+}
+
 func main() {
 	// определяем порт для сервера
 	listen, err := net.Listen("tcp", ":3200")
@@ -105,7 +124,7 @@ func main() {
 		log.Fatal(err)
 	}
 	// создаём gRPC-сервер без зарегистрированной службы
-	s := grpc.NewServer()
+	s := grpc.NewServer(grpc.UnaryInterceptor(unaryInterceptor))
 	// регистрируем сервис
 	pb.RegisterUsersServer(s, &UsersServer{})
 

@@ -15,6 +15,12 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
+// createAuthContext creates a new context with authentication token in metadata
+func createAuthContext(ctx context.Context) context.Context {
+	md := metadata.New(map[string]string{"token": "secret_token"})
+	return metadata.NewOutgoingContext(ctx, md)
+}
+
 func main() {
 	// устанавливаем соединение с сервером
 	conn, err := grpc.Dial(":3200", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -42,7 +48,8 @@ func TestUsers(c pb.UsersClient) {
 	}
 	for _, user := range users {
 		// добавляем пользователей
-		resp, err := c.AddUser(context.Background(), &pb.AddUserRequest{
+		ctx := createAuthContext(context.Background())
+		resp, err := c.AddUser(ctx, &pb.AddUserRequest{
 			User: user,
 		})
 		if err != nil {
@@ -53,7 +60,8 @@ func TestUsers(c pb.UsersClient) {
 		}
 	}
 	// удаляем одного из пользователей
-	resp, err := c.DelUser(context.Background(), &pb.DelUserRequest{
+	ctx := createAuthContext(context.Background())
+	resp, err := c.DelUser(ctx, &pb.DelUserRequest{
 		Email: "serge@example.com",
 	})
 	if err != nil {
@@ -64,11 +72,10 @@ func TestUsers(c pb.UsersClient) {
 	}
 	// если запрос будет выполняться дольше 200 миллисекунд, то вернётся ошибка
 	// с кодом codes.DeadlineExceeded и сообщением context deadline exceeded
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	baseCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
-	md := metadata.New(map[string]string{"token": "12345"})
-	ctx = metadata.NewOutgoingContext(ctx, md)
+	ctx = createAuthContext(baseCtx)
 
 	// получаем информацию о пользователях
 	// во втором случае должна вернуться ошибка:
@@ -100,7 +107,8 @@ func TestUsers(c pb.UsersClient) {
 	}
 
 	// получаем список email пользователей
-	emails, err := c.ListUsers(context.Background(), &pb.ListUsersRequest{
+	ctx = createAuthContext(context.Background())
+	emails, err := c.ListUsers(ctx, &pb.ListUsersRequest{
 		Offset: 0,
 		Limit:  100,
 	})
