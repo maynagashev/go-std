@@ -15,15 +15,23 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-// createAuthContext creates a new context with authentication token in metadata
-func createAuthContext(ctx context.Context) context.Context {
+// authInterceptor добавляет токен аутентификации ко всем исходящим gRPC запросам
+func authInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	// Добавляем токен в исходящий контекст
 	md := metadata.New(map[string]string{"token": "secret_token"})
-	return metadata.NewOutgoingContext(ctx, md)
+	newCtx := metadata.NewOutgoingContext(ctx, md)
+
+	// Продолжаем вызов с использованием нового контекста
+	return invoker(newCtx, method, req, reply, cc, opts...)
 }
 
 func main() {
-	// устанавливаем соединение с сервером
-	conn, err := grpc.Dial(":3200", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	// устанавливаем соединение с сервером с использованием перехватчика
+	conn, err := grpc.Dial(
+		":3200",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithUnaryInterceptor(authInterceptor),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,8 +56,7 @@ func TestUsers(c pb.UsersClient) {
 	}
 	for _, user := range users {
 		// добавляем пользователей
-		ctx := createAuthContext(context.Background())
-		resp, err := c.AddUser(ctx, &pb.AddUserRequest{
+		resp, err := c.AddUser(context.Background(), &pb.AddUserRequest{
 			User: user,
 		})
 		if err != nil {
@@ -60,8 +67,7 @@ func TestUsers(c pb.UsersClient) {
 		}
 	}
 	// удаляем одного из пользователей
-	ctx := createAuthContext(context.Background())
-	resp, err := c.DelUser(ctx, &pb.DelUserRequest{
+	resp, err := c.DelUser(context.Background(), &pb.DelUserRequest{
 		Email: "serge@example.com",
 	})
 	if err != nil {
@@ -72,10 +78,8 @@ func TestUsers(c pb.UsersClient) {
 	}
 	// если запрос будет выполняться дольше 200 миллисекунд, то вернётся ошибка
 	// с кодом codes.DeadlineExceeded и сообщением context deadline exceeded
-	baseCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
-
-	ctx = createAuthContext(baseCtx)
 
 	// получаем информацию о пользователях
 	// во втором случае должна вернуться ошибка:
@@ -97,7 +101,7 @@ func TestUsers(c pb.UsersClient) {
 				fmt.Printf("Не получилось распарсить ошибку %v", err)
 			}
 		} else {
-			// Only check resp.Error when there's no error
+			// Проверяем resp.Error только если нет ошибки
 			if resp.Error == "" {
 				fmt.Println(resp.User)
 			} else {
@@ -107,8 +111,7 @@ func TestUsers(c pb.UsersClient) {
 	}
 
 	// получаем список email пользователей
-	ctx = createAuthContext(context.Background())
-	emails, err := c.ListUsers(ctx, &pb.ListUsersRequest{
+	emails, err := c.ListUsers(context.Background(), &pb.ListUsersRequest{
 		Offset: 0,
 		Limit:  100,
 	})
