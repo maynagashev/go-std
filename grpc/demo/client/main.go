@@ -4,7 +4,10 @@ import (
 	"context"
 	pb "demo/proto"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -57,16 +60,30 @@ func TestUsers(c pb.UsersClient) {
 	if resp.Error != "" {
 		fmt.Println(resp.Error)
 	}
+	// если запрос будет выполняться дольше 200 миллисекунд, то вернётся ошибка
+	// с кодом codes.DeadlineExceeded и сообщением context deadline exceeded
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
 
 	// получаем информацию о пользователях
 	// во втором случае должна вернуться ошибка:
 	// пользователь с email serge@example.com не найден
 	for _, userEmail := range []string{"sveta@example.com", "serge@example.com"} {
-		resp, err := c.GetUser(context.Background(), &pb.GetUserRequest{
+		resp, err := c.GetUser(ctx, &pb.GetUserRequest{
 			Email: userEmail,
 		})
 		if err != nil {
-			log.Fatal(err)
+			if e, ok := status.FromError(err); ok {
+				if e.Code() == codes.NotFound {
+					// выведет, что пользователь не найден
+					fmt.Println(`NOT FOUND`, e.Message())
+				} else {
+					// в остальных случаях выводим код ошибки в виде строки и сообщение
+					fmt.Println(e.Code(), e.Message())
+				}
+			} else {
+				fmt.Printf("Не получилось распарсить ошибку %v", err)
+			}
 		}
 		if resp.Error == "" {
 			fmt.Println(resp.User)
