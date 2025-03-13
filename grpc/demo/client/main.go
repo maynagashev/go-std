@@ -4,10 +4,12 @@ import (
 	"context"
 	pb "demo/proto"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"log"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -65,6 +67,9 @@ func TestUsers(c pb.UsersClient) {
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
+	md := metadata.New(map[string]string{"token": "12345"})
+	ctx = metadata.NewOutgoingContext(ctx, md)
+
 	// получаем информацию о пользователях
 	// во втором случае должна вернуться ошибка:
 	// пользователь с email serge@example.com не найден
@@ -84,11 +89,13 @@ func TestUsers(c pb.UsersClient) {
 			} else {
 				fmt.Printf("Не получилось распарсить ошибку %v", err)
 			}
-		}
-		if resp.Error == "" {
-			fmt.Println(resp.User)
 		} else {
-			fmt.Println(resp.Error)
+			// Only check resp.Error when there's no error
+			if resp.Error == "" {
+				fmt.Println(resp.User)
+			} else {
+				fmt.Println(resp.Error)
+			}
 		}
 	}
 
